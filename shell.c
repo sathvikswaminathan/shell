@@ -43,8 +43,6 @@ int parse_line(char *cmd, char **argv)
 	/* argv is NULL terminated */
 	argv[argc] = NULL;
 
-	printf("argc now = %d\n", argc);
-
 	/* Blank command */
 	if(argc == 0)
 	{
@@ -56,9 +54,6 @@ int parse_line(char *cmd, char **argv)
 	{
 		argv[--argc] = NULL;
 	}
-
-
-	printf("bg = %d\n", bg);
 
 	return bg;
 }
