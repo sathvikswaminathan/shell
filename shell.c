@@ -5,6 +5,8 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <limits.h>
+#include <string.h>
+#include <errno.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 
@@ -30,9 +32,8 @@ int parse_line(char *cmd, char **argv)
 	argc = 0;
 	while((delim = strchr(cmd, ' ')))
 	{
-		argv[argc++] = cmd;
 		*delim = '\0';	/* To NULL terminate the token pointer */
-		printf("%s\n", cmd);
+		argv[argc++] = cmd;
 		cmd = ++delim;
 		/* Ignore leading spaces in cmd after token */
 		while(*cmd && (*cmd == ' '))
@@ -42,6 +43,8 @@ int parse_line(char *cmd, char **argv)
 	}
 	/* argv is NULL terminated */
 	argv[argc] = NULL;
+
+	int i = 0;
 
 	/* Blank command */
 	if(argc == 0)
@@ -58,30 +61,87 @@ int parse_line(char *cmd, char **argv)
 	return bg;
 }
 
-
+int builtin_cmd(char **argv)
+{
+	if (!strcmp(argv[0], "exit")) /* quit command */
+		exit(0);
+	if (!strcmp(argv[0], "&"))
+		return 1;				/* Ignore singleton & */
+	
+	return 0;
+}
 
 int main()
 {
 	char cwd[PATH_MAX];	/* current directory */
 	char *cmd;
 	char *argv[MAXARGS];
+	char *environ[] = { NULL };
+	int i = 0;
+	pid_t pid;
+	int status, bg;
 
 	while(1) 
 	{
 		if (getcwd(cwd, sizeof(cwd)) != NULL) 
 		{
+			/* Print prompt */
 			printf("%s", cwd);
-			cmd = readline(": ");
-			cmd = (char*)realloc(cmd, sizeof(char)*strlen(cmd));
-			/* last character is set to ' ' to parse properly */
-			cmd[strlen(cmd)] = ' ';
-			parse_line(cmd, argv);
-			free(cmd);
 		} 
 		else 
 		{
-			printf("error\n");
+			fprintf(stderr, "cwd error: %s\n", strerror(errno));
 			return 1;
+		}	
+
+		/* Read command */
+		cmd = readline(": ");
+		cmd = (char*)realloc(cmd, sizeof(char)*strlen(cmd));
+		/* last character is set to ' ' to parse properly */
+		cmd[strlen(cmd)] = ' ';
+
+		/* Tokenize command */
+		bg = parse_line(cmd, argv);
+
+		/* Evaluate command */
+		/* Ignore blank command */
+		if(argv[0] == NULL)
+			return 1;
+
+		/* Fork and exec if not builtin command */
+		if(!builtin_cmd(argv))
+		{
+			/* Create child process to run command */
+			pid = fork();
+
+			if(pid < 0)
+			{
+				fprintf(stderr, "fork error: %s\n", strerror(errno));
+			}
+			else if(pid == 0)
+			{
+				/* Load image of executable in child process */
+				if(execvp(argv[0], argv) < 0)
+				{
+					/* execvp does not return if successful */
+					fprintf(stderr, "execve error: %s\n", strerror(errno));
+					free(cmd);
+					return 1;
+				}
+			}
+			else
+			{
+				/* Shell waits for foreground process to terminate */
+				if(!bg)
+				{
+					if(waitpid(pid, &status, 0) < 0)
+					{
+						fprintf(stderr, "waitpid error: %s\n", strerror(errno));
+						free(cmd);
+						return 1;
+					}
+				}
+			}
 		}
 	}
 
