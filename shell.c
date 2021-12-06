@@ -145,9 +145,8 @@ int builtin_cmd(char **argv)
 
 void sigchld_handler()
 {
-	sigset_t mask_all, prev_all;
+	sigset_t prev_all;
 	pid_t pid;
-	sigfillset(&mask_all);	/* All signals masked */
 
 	while ((pid = waitpid(-1, NULL, 0)) > 0) 
 	{
@@ -222,11 +221,9 @@ int main()
 {
 	char cwd[PATH_MAX];	/* current directory */
 	char *argv[MAXARGS];/* arg vector to be passed to execvp */
-	pid_t pid, jobs[MAXJOBS];
-	int job_id = 0;
+	pid_t pid;
 	int status, bg;
-	int process_status;
-	sigset_t mask_all, mask_one, prev_one;
+	sigset_t mask_one, prev_one;
 
 	while(1) 
 	{
