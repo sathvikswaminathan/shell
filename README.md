@@ -19,3 +19,7 @@ Implementation of a very basic shell
 `gcc shell.c -lreadline -o shell`
 
 `./shell`
+
+## Console output
+
+![alt text](https://github.com/sathvikswaminathan/shell/blob/main/shell.png?raw=true)
