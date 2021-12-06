@@ -11,10 +11,13 @@
 #include <readline/history.h>
 
 #define MAXARGS 10
+#define MAXJOBS 10
 
 /* Parse input command */ 
 /* return 1 if background process */
 /* return 0 if foreground process */
+
+char *cmd;			/* Input from user */
 
 int parse_line(char *cmd, char **argv)
 {
@@ -61,22 +64,77 @@ int parse_line(char *cmd, char **argv)
 	return bg;
 }
 
+/* returns 1 if built-in command */
+/* exit, &, cd, */
 int builtin_cmd(char **argv)
 {
-	if (!strcmp(argv[0], "exit")) /* quit command */
+	if (!strcmp(argv[0], "exit")) /* exit command */
+	{
+		free(cmd);
 		exit(0);
+	}
+
 	if (!strcmp(argv[0], "&"))
 		return 1;				/* Ignore singleton & */
-	
+
+	if(!strcmp(argv[0], "cd"))
+	{
+		if(chdir(argv[1]) < 0)
+		{
+			fprintf(stderr, "cd error: %s\n", strerror(errno));
+			return 1;
+		}
+		return 1;
+	}
+
+	if(!strcmp(argv[0], "history"))
+	{
+	    HISTORY_STATE *hist = history_get_history_state();
+		HIST_ENTRY **list = history_list();
+
+	    printf ("Session history: \n");
+	    for (int i = 0; i < hist->length; i++) 
+	    { 
+	        printf (" %8s  %s\n", list[i]->line, list[i]->timestamp);
+	        free_history_entry(list[i]);     
+	    }
+	    free(hist);  
+	    free(list);
+	    return 1;
+	}
+
+	if(!strcmp(argv[0], "help"))
+	{
+		printf("\nList of commands supported: \n\n"
+			       "exit: ends shell session\n"  
+			       "cd [path]: changes directory\n"  
+			       "history: displays history of commands\n"
+			       "kill [pid]: terminates process\n"
+			       "jobs: lists currently running jobs\n"   
+		       );
+		printf("\nI/O redirection is supported.\n\n");
+		return 1;
+	}
+
+	if(!strcmp(argv[0], "kill"))
+	{
+		return 1;
+	}
+
+	if(!strcmp(argv[0], "jobs"))
+	{
+		return 1;
+	}
+
 	return 0;
 }
 
 int main()
 {
 	char cwd[PATH_MAX];	/* current directory */
-	char *cmd;			/* Input from user */
 	char *argv[MAXARGS];/* arg vector to be passed to execvp */
-	pid_t pid;
+	pid_t pid, jobs[MAXJOBS];
+	int job_id = 0;
 	int status, bg;
 
 	while(1) 
@@ -94,6 +152,7 @@ int main()
 
 		/* Read command */
 		cmd = readline(": ");
+		add_history(cmd);
 		cmd = (char*)realloc(cmd, sizeof(char)*strlen(cmd));
 		/* last character is set to ' ' to parse properly */
 		cmd[strlen(cmd)] = ' ';
@@ -122,7 +181,7 @@ int main()
 				if(execvp(argv[0], argv) < 0)
 				{
 					/* execvp does not return if successful */
-					fprintf(stderr, "execve error: %s\n", strerror(errno));
+					fprintf(stderr, "execvp error: %s\n", strerror(errno));
 					free(cmd);
 					return 1;
 				}
@@ -138,7 +197,7 @@ int main()
 						free(cmd);
 						return 1;
 					}
-				}
+				}	
 			}
 		}
 	}
