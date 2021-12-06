@@ -74,10 +74,8 @@ int builtin_cmd(char **argv)
 int main()
 {
 	char cwd[PATH_MAX];	/* current directory */
-	char *cmd;
-	char *argv[MAXARGS];
-	char *environ[] = { NULL };
-	int i = 0;
+	char *cmd;			/* Input from user */
+	char *argv[MAXARGS];/* arg vector to be passed to execvp */
 	pid_t pid;
 	int status, bg;
 
