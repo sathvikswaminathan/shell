@@ -17,7 +17,19 @@
 /* return 1 if background process */
 /* return 0 if foreground process */
 
-char *cmd;			/* Input from user */
+char *cmd;				/* Input from user */
+
+struct job
+{
+	pid_t pid;			/* Process ID of job */
+	char *cmd;			/* Command name */
+	struct job *next;	/* Pointer to next job */
+};
+
+struct job* head = NULL;
+
+void print_job(struct job*, pid_t);
+void delete_job(struct job**, pid_t);
 
 int parse_line(char *cmd, char **argv)
 {
@@ -112,22 +124,99 @@ int builtin_cmd(char **argv)
 			       "kill [pid]: terminates process\n"
 			       "jobs: lists currently running jobs\n"   
 		       );
-		printf("\nI/O redirection is supported.\n\n");
+		printf("\nRun jobs in foreground or background(&)\n\n");
 		return 1;
 	}
 
 	if(!strcmp(argv[0], "kill"))
 	{
+		kill(atoi(argv[1]), SIGKILL);
 		return 1;
 	}
 
 	if(!strcmp(argv[0], "jobs"))
 	{
+		print_job(head, -1);
 		return 1;
 	}
 
 	return 0;
 }
+
+void sigchld_handler()
+{
+	sigset_t mask_all, prev_all;
+	pid_t pid;
+	sigfillset(&mask_all);	/* All signals masked */
+
+	while ((pid = waitpid(-1, NULL, 0)) > 0) 
+	{
+		/* Delete job from job list */
+		delete_job(&head, pid);
+	}
+}
+
+/* Add job to job list */
+void add_job(struct job** head, pid_t pid, char* cmd)
+{
+    struct job* new_job = (struct job*) malloc(sizeof(struct job));
+    new_job->pid  = pid;
+    new_job->cmd = cmd;
+    new_job->next = (*head);
+    (*head) = new_job;
+    return ;
+}
+
+/* Delete job from job list */
+void delete_job(struct job** head, pid_t pid)
+{
+    struct job *temp = *head, *prev;
+
+    if (temp != NULL && temp->pid == pid) {
+        *head = temp->next; // Changed head
+        free(temp); // free old head
+        return;
+    }
+
+    while (temp != NULL && temp->pid != pid) {
+        prev = temp;
+        temp = temp->next;
+    }
+    if (temp == NULL)
+        return;
+
+    prev->next = temp->next;
+    free(temp); 
+    return;
+}
+
+/* Display jobs */
+void print_job(struct job* node, pid_t pid)
+{
+	if(pid < 0)
+	{
+		/* print all jobs */
+		while (node != NULL) 
+		{
+	        printf("%d:  %s\n", node->pid, node->cmd);
+	        node = node->next;
+    	}
+	}
+	else
+	{
+		/* print one job */
+		while (node != NULL) 
+		{
+			if(node->pid == pid)
+			{
+				printf("%d:  %s\n", node->pid, node->cmd);
+	        	node = node->next;
+			}
+    	}
+	}
+	return;
+}
+
 
 int main()
 {
@@ -136,9 +225,18 @@ int main()
 	pid_t pid, jobs[MAXJOBS];
 	int job_id = 0;
 	int status, bg;
+	int process_status;
+	sigset_t mask_all, mask_one, prev_one;
 
 	while(1) 
 	{
+		/* Install SIGCHLD handler */
+		if(signal(SIGCHLD, sigchld_handler) == SIG_ERR)
+		{
+			printf("SIGCHLD error.\n");
+			return 1;
+		}
+
 		if (getcwd(cwd, sizeof(cwd)) != NULL) 
 		{
 			/* Print prompt */
@@ -151,7 +249,7 @@ int main()
 		}	
 
 		/* Read command */
-		cmd = readline(": ");
+		cmd = readline("$ ");
 		add_history(cmd);
 		cmd = (char*)realloc(cmd, sizeof(char)*strlen(cmd));
 		/* last character is set to ' ' to parse properly */
@@ -168,6 +266,7 @@ int main()
 		/* Fork and exec if not builtin command */
 		if(!builtin_cmd(argv))
 		{
+			sigprocmask(SIG_BLOCK, &mask_one, &prev_one); /* Block SIGCHLD */
 			/* Create child process to run command */
 			pid = fork();
 
@@ -177,6 +276,7 @@ int main()
 			}
 			else if(pid == 0)
 			{
+				sigprocmask(SIG_SETMASK, &prev_one, NULL); /* Unblock SIGCHLD */
 				/* Load image of executable in child process */
 				if(execvp(argv[0], argv) < 0)
 				{
@@ -188,6 +288,8 @@ int main()
 			}
 			else
 			{
+				sigprocmask(SIG_SETMASK, &prev_one, NULL); /* Unblock SIGCHLD */
+				add_job(&head, pid, cmd);
 				/* Shell waits for foreground process to terminate */
 				if(!bg)
 				{
