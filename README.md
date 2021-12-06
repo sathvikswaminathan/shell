@@ -5,7 +5,7 @@ Implementation of a very basic shell
 
 - Built-in commands
     - `exit`: ends shell session
-    - `cd`: [path]: changes directory
+    - `cd [path]` : changes directory
     - `history`: displays history of commands
     - `kill [pid]`: terminates process
     - `jobs`: lists currently running jobs
