@@ -9,7 +9,8 @@ Implementation of a very basic shell
     - `history`: displays history of commands
     - `kill [pid]`: terminates process
     - `jobs`: lists currently running jobs
-    - 
+    - `help`: Displays all commands
+    
 -  Run jobs in foreground or background(&)
 
 
