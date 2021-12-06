@@ -285,8 +285,8 @@ int main()
 			}
 			else
 			{
-				sigprocmask(SIG_SETMASK, &prev_one, NULL); /* Unblock SIGCHLD */
 				add_job(&head, pid, cmd);
+				sigprocmask(SIG_SETMASK, &prev_one, NULL); /* Unblock SIGCHLD */
 				/* Shell waits for foreground process to terminate */
 				if(!bg)
 				{
